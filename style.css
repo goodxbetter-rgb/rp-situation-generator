@@ -1,3 +1,4 @@
+
 #rpsg-generate-button {
     display: inline-flex;
     align-items: center;
@@ -36,12 +37,10 @@
 .rpsg-panel {
     position: fixed;
     z-index: 99999;
-
     top: 50%;
     left: 50%;
     right: auto;
     bottom: auto;
-
     transform: translate(-50%, -50%);
 
     display: none;
@@ -49,23 +48,20 @@
 
     width: min(440px, calc(100vw - 32px));
     height: auto;
-
     max-height: calc(100vh - 32px);
     max-height: calc(100dvh - 32px);
 
+    min-width: 0;
     min-height: 0;
     box-sizing: border-box;
-
     overflow: hidden;
 
     padding: 16px;
-
     border: 1px solid rgba(195, 154, 98, .48);
     border-radius: 14px;
 
     background: rgba(23, 23, 23, .98);
     color: #f1eee9;
-
     box-shadow: 0 8px 32px rgba(0,0,0,.48);
     backdrop-filter: blur(12px);
 }
@@ -81,7 +77,6 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(255,255,255,.10);
 }
@@ -104,13 +99,10 @@
     flex: 0 0 auto;
     width: 28px;
     height: 28px;
-
     border: 0;
     border-radius: 7px;
-
     background: rgba(255,255,255,.08);
     color: #ddd;
-
     font-size: 21px;
     line-height: 1;
 }
@@ -119,19 +111,21 @@
 .rpsg-status {
     flex: 0 0 auto;
     padding: 12px 2px 10px;
-
     color: #bcb6ae;
     font-size: 11px;
 }
 
-/* Results: only this section scrolls */
+/* Results */
 .rpsg-results {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
 
     flex: 0 1 auto;
+    min-width: 0;
     min-height: 0;
 
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -139,13 +133,11 @@
 
 /* Cards */
 .rpsg-card {
-    flex: 0 0 auto;
-
+    min-width: 0;
+    box-sizing: border-box;
     padding: 12px;
-
     border: 1px solid rgba(195,154,98,.24);
     border-radius: 10px;
-
     background: rgba(38, 34, 32, .82);
 }
 
@@ -159,15 +151,11 @@
 .rpsg-number {
     display: inline-grid;
     place-items: center;
-
     min-width: 25px;
     height: 25px;
-
     border-radius: 7px;
-
     background: rgba(195,154,98,.16);
     color: #d6b27f;
-
     font-size: 10px;
     font-weight: 700;
 }
@@ -179,11 +167,9 @@
 
 .rpsg-card-text {
     margin: 0 0 10px;
-
     color: #e7e2dc;
     font-size: 12px;
     line-height: 1.65;
-
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -194,15 +180,11 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-
     padding: 6px 10px;
-
     border: 1px solid rgba(195,154,98,.38);
     border-radius: 7px;
-
     background: rgba(195,154,98,.10);
     color: #e7cfaa;
-
     font-size: 11px;
 }
 
@@ -216,14 +198,11 @@
 .rpsg-panel-foot {
     display: flex;
     flex: 0 0 auto;
-
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-
     margin-top: 12px;
     padding-top: 10px;
-
     border-top: 1px solid rgba(255,255,255,.10);
 }
 
@@ -241,15 +220,14 @@
 @media (max-width: 600px) {
     .rpsg-panel {
         width: calc(100vw - 20px);
-
         max-height: calc(100vh - 20px);
         max-height: calc(100dvh - 20px);
-
         padding: 14px;
     }
 
     .rpsg-results {
-        flex: 1 1 auto;
+        flex: 0 1 auto;
+        max-height: 45dvh;
     }
 
     .rpsg-panel-foot {
@@ -265,11 +243,13 @@
 @media (max-width: 360px) {
     .rpsg-panel {
         width: calc(100vw - 16px);
-
         max-height: calc(100vh - 16px);
         max-height: calc(100dvh - 16px);
-
         padding: 12px;
+    }
+
+    .rpsg-results {
+        max-height: 40dvh;
     }
 
     .rpsg-panel-foot {
