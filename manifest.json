@@ -1,0 +1,9 @@
+{
+  "display_name": "RP Situation Generator",
+  "loading_order": 20,
+  "js": "index.js",
+  "css": "style.css",
+  "author": "ChatGPT",
+  "version": "1.0.0",
+  "homePage": ""
+}
