@@ -1,5 +1,3 @@
-
-
 const EXTENSION_ID = 'rp-situation-generator';
 const BUTTON_ID = 'rpsg-generate-button';
 const PANEL_ID = 'rpsg-panel';
@@ -74,21 +72,38 @@ function closePanel() {
 
     panel?.classList.remove('is-open');
     backdrop?.classList.remove('is-open');
+
+    panel?.style.setProperty('display', 'none', 'important');
+    backdrop?.style.setProperty('display', 'none', 'important');
+
     document.body.classList.remove('rpsg-modal-open');
 }
 
 function openPanel(panel = createPanel()) {
-    const backdrop = document.getElementById(BACKDROP_ID);
+    let backdrop = document.getElementById(BACKDROP_ID);
 
-    backdrop?.classList.add('is-open');
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = BACKDROP_ID;
+        backdrop.className = 'rpsg-backdrop';
+        backdrop.addEventListener('click', closePanel);
+        document.body.appendChild(backdrop);
+    }
+
+    if (panel.parentElement !== document.body) {
+        document.body.appendChild(panel);
+    }
+
+    backdrop.classList.add('is-open');
     panel.classList.add('is-open');
+
+    backdrop.style.setProperty('display', 'block', 'important');
+    panel.style.setProperty('display', 'flex', 'important');
+
     document.body.classList.add('rpsg-modal-open');
 }
 
 function createPanel() {
-    let panel = document.getElementById(PANEL_ID);
-    if (panel) return panel;
-
     let backdrop = document.getElementById(BACKDROP_ID);
 
     if (!backdrop) {
@@ -98,6 +113,15 @@ function createPanel() {
 
         backdrop.addEventListener('click', closePanel);
         document.body.appendChild(backdrop);
+    }
+
+    let panel = document.getElementById(PANEL_ID);
+
+    if (panel) {
+        if (panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
+        }
+        return panel;
     }
 
     panel = document.createElement('div');
