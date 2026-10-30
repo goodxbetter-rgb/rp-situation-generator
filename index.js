@@ -54,23 +54,42 @@ function ensureButton() {
     button.title = 'สร้างสถานการณ์ต่อจากบริบท RP ปัจจุบัน';
     button.addEventListener('click', generateSituations);
 
-    // Insert near the send controls without replacing any existing controls.
     const sendButton = sendForm.querySelector('#send_but');
     if (sendButton?.parentElement) {
         sendButton.parentElement.insertBefore(button, sendButton);
     } else {
         sendForm.appendChild(button);
     }
+
     return true;
+}
+
+function openPanel(panel) {
+    if (panel instanceof HTMLDialogElement) {
+        if (!panel.open) panel.showModal();
+    } else {
+        panel.classList.add('is-open');
+    }
+}
+
+function closePanel(panel) {
+    if (panel instanceof HTMLDialogElement) {
+        if (panel.open) panel.close();
+    } else {
+        panel.classList.remove('is-open');
+    }
 }
 
 function createPanel() {
     let panel = document.getElementById(PANEL_ID);
     if (panel) return panel;
 
-    panel = document.createElement('div');
+    // Native dialog uses the browser's top layer.
+    panel = document.createElement('dialog');
     panel.id = PANEL_ID;
     panel.className = 'rpsg-panel';
+    panel.setAttribute('aria-label', 'RP Situation Generator');
+
     panel.innerHTML = `
       <div class="rpsg-panel-head">
         <div>
@@ -79,17 +98,32 @@ function createPanel() {
         </div>
         <button type="button" class="rpsg-close" aria-label="Close">×</button>
       </div>
+
       <div class="rpsg-status">กดปุ่มเพื่อสร้างสถานการณ์จากฉากปัจจุบัน</div>
+
       <div class="rpsg-results"></div>
+
       <div class="rpsg-panel-foot">
         <span>สร้างจากบริบทแชตล่าสุด · ไม่ส่งข้อความเข้าแชต</span>
         <button type="button" class="rpsg-again">สุ่มใหม่</button>
       </div>
     `;
+
     document.body.appendChild(panel);
 
-    panel.querySelector('.rpsg-close').addEventListener('click', () => panel.classList.remove('is-open'));
+    panel.querySelector('.rpsg-close').addEventListener('click', () => {
+        closePanel(panel);
+    });
+
     panel.querySelector('.rpsg-again').addEventListener('click', generateSituations);
+
+    // Clicking the backdrop closes the dialog.
+    panel.addEventListener('click', (event) => {
+        if (event.target === panel) {
+            closePanel(panel);
+        }
+    });
+
     return panel;
 }
 
@@ -103,61 +137,85 @@ function setLoading(isLoading) {
         button.disabled = isLoading;
         button.classList.toggle('is-loading', isLoading);
     }
+
     again.disabled = isLoading;
+
     status.textContent = isLoading
         ? 'กำลังอ่านบริบทและสร้างสถานการณ์ 3 แบบ…'
         : 'เลือกสถานการณ์ที่สนใจ แล้วกด Copy เพื่อนำไปวางในแชต';
 }
 
 function extractResponseText(raw) {
-    // Current SillyTavern versions return a string. These fallbacks also cover
-    // wrappers used by some builds or third-party adapters.
     if (typeof raw === 'string') return raw.trim();
     if (raw == null) return '';
+
     if (typeof raw === 'object') {
         for (const key of ['text', 'content', 'response', 'result', 'output', 'message']) {
-            if (typeof raw[key] === 'string' && raw[key].trim()) return raw[key].trim();
+            if (typeof raw[key] === 'string' && raw[key].trim()) {
+                return raw[key].trim();
+            }
         }
+
         if (Array.isArray(raw)) {
-            return raw.map(part => typeof part === 'string' ? part : (part?.text || part?.content || ''))
-                .filter(Boolean).join('\n').trim();
+            return raw
+                .map(part => typeof part === 'string' ? part : (part?.text || part?.content || ''))
+                .filter(Boolean)
+                .join('\n')
+                .trim();
         }
     }
+
     return String(raw).trim();
 }
 
 function findJsonObject(source) {
-    // Find the first complete JSON object, respecting braces inside quoted text.
     const first = source.indexOf('{');
     if (first < 0) return null;
+
     let depth = 0;
     let inString = false;
     let escaped = false;
+
     for (let i = first; i < source.length; i++) {
         const ch = source[i];
+
         if (inString) {
             if (escaped) escaped = false;
             else if (ch === '\\') escaped = true;
             else if (ch === '"') inString = false;
             continue;
         }
+
         if (ch === '"') inString = true;
         else if (ch === '{') depth++;
-        else if (ch === '}' && --depth === 0) return source.slice(first, i + 1);
+        else if (ch === '}' && --depth === 0) {
+            return source.slice(first, i + 1);
+        }
     }
+
     return null;
 }
 
 function normalizeSituationItems(value) {
     if (!Array.isArray(value)) return [];
+
     return value.map((item, index) => {
         if (typeof item === 'string') {
-            return { title: `สถานการณ์ ${index + 1}`, text: item.trim() };
+            return {
+                title: `สถานการณ์ ${index + 1}`,
+                text: item.trim()
+            };
         }
+
         if (!item || typeof item !== 'object') return null;
+
         const title = item.title ?? item.name ?? item.heading ?? `สถานการณ์ ${index + 1}`;
         const text = item.text ?? item.description ?? item.situation ?? item.content ?? item.prompt ?? '';
-        return { title: String(title), text: String(text).trim() };
+
+        return {
+            title: String(title),
+            text: String(text).trim()
+        };
     }).filter(item => item && item.text).slice(0, 3);
 }
 
@@ -167,46 +225,56 @@ function parseResult(raw) {
         .replace(/\s*```$/i, '')
         .trim();
 
-    if (!response) throw new Error('AI ส่งคำตอบกลับมาเป็นค่าว่าง ลองกดสุ่มใหม่อีกครั้ง');
+    if (!response) {
+        throw new Error('AI ส่งคำตอบกลับมาเป็นค่าว่าง ลองกดสุ่มใหม่อีกครั้ง');
+    }
 
-    // First try the complete response, then recover a JSON object embedded in prose.
     const candidates = [response, findJsonObject(response)].filter(Boolean);
+
     for (const candidate of candidates) {
         try {
             const parsed = JSON.parse(candidate);
+
             const list = Array.isArray(parsed)
                 ? parsed
                 : (parsed.situations ?? parsed.suggestions ?? parsed.options ?? parsed.items);
+
             const items = normalizeSituationItems(list);
+
             if (items.length === 3) return items;
         } catch (_) {
             // Try the next representation.
         }
     }
 
-    // Last-resort support for a model that ignored the JSON-only instruction
-    // and returned three numbered/plain-text suggestions instead.
-    const numbered = response.match(/(?:^|\n)\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-])\s*([\s\S]*?)(?=(?:\n\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-]))|$)/g);
+    const numbered = response.match(
+        /(?:^|\n)\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-])\s*[\s\S]*?(?=(?:\n\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-]))|$)/g
+    );
+
     if (numbered?.length === 3) {
         const items = numbered.map((part, index) => ({
             title: `สถานการณ์ ${index + 1}`,
-            text: part.replace(/^\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-])\s*/, '').trim(),
+            text: part.replace(/^\s*(?:[1-3][.)、]|ตัวเลือก\s*[1-3][:)：.-])\s*/, '').trim()
         })).filter(item => item.text);
+
         if (items.length === 3) return items;
     }
 
     console.warn('[RP Situation Generator] Unparsed AI response:', response);
+
     throw new Error('AI สร้างคำตอบแล้ว แต่รูปแบบไม่ตรงที่ระบบอ่านได้ กรุณากดสุ่มใหม่อีกครั้ง');
 }
 
 function renderSituations(items) {
     const panel = createPanel();
     const results = panel.querySelector('.rpsg-results');
+
     results.replaceChildren();
 
     items.forEach((item, index) => {
         const title = String(item.title || `สถานการณ์ ${index + 1}`);
         const text = String(item.text || item.description || '').trim();
+
         if (!text) return;
 
         const card = document.createElement('article');
@@ -233,22 +301,31 @@ function renderSituations(items) {
         copy.type = 'button';
         copy.className = 'rpsg-copy';
         copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+
         copy.addEventListener('click', async () => {
-            const content = text;
             try {
-                await navigator.clipboard.writeText(content);
+                await navigator.clipboard.writeText(text);
+
                 copy.innerHTML = '<i class="fa-solid fa-check"></i> Copied';
                 notify('คัดลอกสถานการณ์แล้ว', 'success');
-                setTimeout(() => { copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }, 1300);
+
+                setTimeout(() => {
+                    copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+                }, 1300);
+
             } catch (error) {
                 const area = document.createElement('textarea');
-                area.value = content;
+                area.value = text;
                 document.body.appendChild(area);
                 area.select();
                 document.execCommand('copy');
                 area.remove();
+
                 copy.textContent = 'Copied';
-                setTimeout(() => { copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }, 1300);
+
+                setTimeout(() => {
+                    copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+                }, 1300);
             }
         });
 
@@ -259,13 +336,17 @@ function renderSituations(items) {
     if (!results.children.length) {
         throw new Error('ไม่พบสถานการณ์ในผลลัพธ์จาก AI');
     }
-    panel.querySelector('.rpsg-status').textContent = 'เลือกสถานการณ์ที่สนใจ แล้วกด Copy เพื่อนำไปวางในแชต';
-    panel.classList.add('is-open');
-    panel.scrollTop = 0;
+
+    panel.querySelector('.rpsg-status').textContent =
+        'เลือกสถานการณ์ที่สนใจ แล้วกด Copy เพื่อนำไปวางในแชต';
+
+    openPanel(panel);
+    results.scrollTop = 0;
 }
 
 async function generateSituations() {
     const context = getContext();
+
     if (!context) {
         notify('ยังเชื่อมต่อกับ SillyTavern ไม่ได้ กรุณารีเฟรชหน้าแชต', 'error');
         return;
@@ -282,24 +363,35 @@ async function generateSituations() {
     }
 
     const panel = createPanel();
-    panel.classList.add('is-open');
+
+    openPanel(panel);
     panel.querySelector('.rpsg-results').replaceChildren();
+
     setLoading(true);
 
     try {
         const raw = await context.generateQuietPrompt({
-            quietPrompt: GENERATOR_PROMPT,
+            quietPrompt: GENERATOR_PROMPT
         });
+
         console.debug('[RP Situation Generator] Quiet generation returned:', typeof raw, raw);
+
         const situations = parseResult(raw);
+
         if (situations.length !== 3) {
             throw new Error(`AI สร้างมา ${situations.length} รายการ ต้องการ 3 รายการพอดี ลองกดสุ่มใหม่`);
         }
+
         renderSituations(situations);
+
     } catch (error) {
         console.error('[RP Situation Generator]', error);
-        panel.querySelector('.rpsg-status').textContent = error?.message || 'เกิดข้อผิดพลาดระหว่างสร้างสถานการณ์';
+
+        panel.querySelector('.rpsg-status').textContent =
+            error?.message || 'เกิดข้อผิดพลาดระหว่างสร้างสถานการณ์';
+
         notify(error?.message || 'สร้างสถานการณ์ไม่สำเร็จ', 'error');
+
     } finally {
         setLoading(false);
     }
@@ -311,9 +403,12 @@ function initialize() {
     const observer = new MutationObserver(() => {
         if (ensureButton()) observer.disconnect();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
 
-    // Safety stop in case the expected chat composer is not present.
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
     setTimeout(() => observer.disconnect(), 30000);
 }
 
@@ -324,6 +419,7 @@ if (document.readyState === 'loading') {
 }
 
 const ctx = getContext();
+
 if (ctx?.eventSource && ctx?.event_types?.APP_READY) {
     ctx.eventSource.on(ctx.event_types.APP_READY, initialize);
 }
